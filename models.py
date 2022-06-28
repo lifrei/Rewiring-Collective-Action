@@ -59,9 +59,13 @@ nwsize = 1089   # nwsize = 1089 used for CSF (Clustered scale free network) netw
 friendship = 0.5
 friendshipSD = 0.15
 clustering = 0.5 # CSF clustering in louvain algorithm
+#new variables:
 breaklinkprob = 1
-establishlinkprob = 1
+establishlinkprob = 1 # breaklinkprob and establishlinkprob are used in random rewiring. Are always chosen to be the same to keep average degree constant!
 rewiringAlgorithm = 'biased' #None, random, biased, bridge
+#the rewiringAlgorithm variable was meant to enable to do multiple runs at once. However the loop where the specification 
+#given in the ArgList in run.py file overrules what is given in line 65 does not work. Unclear why. 
+#long story short. All changes to breaklinkprob, establishlinkprob and rewiringAlgorithm have to be specified here in the models file
 
 
 # the arguments provided in run.py overrides these values
@@ -70,7 +74,7 @@ args = {"defectorUtility" : defectorUtility,
         "stubbornness": stubbornness, "degree":degree, "timesteps" : timesteps, "continuous" : continuous, "type" : gridtype, "skew": skew, "initSD": initSD, "newPoliticalClimate": newPoliticalClimate, "randomness" : randomness, "friendship" : friendship, "friendshipSD" : friendshipSD, "clustering" : clustering,
         "rewiringAlgorithm" : rewiringAlgorithm,
         "breaklinkprob" : breaklinkprob,
-        "establishlinkprob" : establishlinkprob, "establishlinkprob_high" : establishlinkprob_high, "establishlinkprob_low" : establishlinkprob_low}
+        "establishlinkprob" : establishlinkprob}
 
 def getargs():
     return args
@@ -84,7 +88,7 @@ def simulate(i, newArgs):
     initialStateGenerator = get_truncated_normal(args["skew"], args["initSD"], -1, 1)
     ind = None
 
-    # network type to use
+    # network type to use, I always ran on a cl 
     if(args["type"] == "cl"):
         #print("2")
         model =ClusteredPowerlawModel(nwsize, args["degree"], skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
@@ -111,8 +115,8 @@ def simulate(i, newArgs):
 
 class Agent:
     def __init__(self, state, state2, stubbornness):
-        self.state = state
-        self.state2 = state2
+        self.state = state 
+        self.state2 = state2 #in the beginning there was an idea of implementing a second state, however the results turned complicated so we stuck to just having one state opinion -> this is not used in the model
         self.interactionsReceived = 0
         self.interactionsGiven = 0
         self.stubbornness = stubbornness
@@ -166,7 +170,7 @@ class Agent:
             print("Error state outside state range: ", newState)
 
 
-# this class contains functions and values partaining to the model, some of it is in use, some of it is not, it should all function however
+# this class contains functions and values partaining to the model, some of it is in use, some of it is not
 class Model:
     # initial values
     def __init__(self, friendshipWeightGenerator = None, initialStateGenerator=None):
@@ -194,7 +198,7 @@ class Model:
         self.partition = None
         self.test = []
 
-    # perform an interaction with a random neighbour
+    # picks a randon agent to perform an interaction with a random neighbour and then to rewire
     def interact(self):
         #print('starting interaction')
         nodeIndex = random.randint(0, len(self.graph) - 1)
@@ -211,6 +215,7 @@ class Model:
 
         node.consider(chosenNeighbour, weight, self.politicalClimate)
         
+        #the same random agent rewires after interacting:
         if rewiringAlgorithm != None: 
             if rewiringAlgorithm == 'random':
                 self.randomrewiring(nodeIndex)
@@ -224,7 +229,6 @@ class Model:
 
 #rewiring--------------------------------------------------------------------------------
     def randomrewiring(self, nodeIndex):
-        #if random.random() < rewireprob:
             
            # print('starting random rewiring')
             
@@ -257,6 +261,10 @@ class Model:
             
             
     def biasedrewiring(self, nodeIndex):
+        #'realistic' rewiring. Agent can only rewire within small number of network steps and has a bias towards like minded people in the establishing of links
+        #here we have an extreme assumption: if agents are of the same opinion a link is established for sure, if not, no link is established -> could be refined by introducing a probability curve 
+        #e.g the more alike they are, the higher the probability of establishing a link, vice versa
+        #breaking a link only when a link is established is a good idea as the likelyhood of meeting like thinkers changes as the network evolves and it is an easy way to retain the average degree to not get isolated nodes etc
       
         #print('starting biased rewiring')
 
@@ -268,17 +276,17 @@ class Model:
         for k in non_neighbors: #! what if somebody has no neighbors!!
             #this is probably not the fastest way, maybe shorter way to check if there is a path with max length x
             paths = nx.all_simple_paths(self.graph, source=nodeIndex, target=k, cutoff=2)
-            #cutoff defines the number of network steps to look for possible new friends.
+            #cutoff defines the number of network steps to look for possible new friends. cutoff=2 it is possible for agent i to rewire to friends of friends
             if len(list(paths)) > 0:
                 potentialfriends.append(k)
                    
-        rewired = False
+        rewired = False #only if a link is established a link is broken hence we need a variable telling us whether a link has been established
         #print(rewired)
               
         if(len(potentialfriends) == 0): #the agent is connected to the whole network, hence cannot establish further links
            return nodeIndex
         else:
-           establishlinkNeighborIndex = random.sample(potentialfriends, 1)
+           establishlinkNeighborIndex = random.sample(potentialfriends, 1) #here preferential attachment should be implemented
            establishlinkNeighborIndex = establishlinkNeighborIndex[0]
            #print(establishlinkNeighborIndex)
                
@@ -296,11 +304,11 @@ class Model:
                #print(node.state, establishlinkNeighbor.state)
                self.graph.add_edge(nodeIndex, establishlinkNeighborIndex, weight = get_truncated_normal(args["friendship"], args["friendshipSD"], 0, 1).rvs(1)[0])
                rewired = True
-               
+               #to make the biased_d algorithm, just copy the above 2 lines in the 'we are different' part and move the return nodeIndex down here
            else:
                print('error: state signs not same not different?')
                
-           if rewired == True:
+           if rewired == True: #links are only broken if a link is established
                
                init_neighbours =  list(self.graph.adj[nodeIndex].keys())
                if(len(init_neighbours) == 0):
@@ -313,10 +321,11 @@ class Model:
    
     
     def bridgerewiring(self, nodeIndex):
-        #rewiring outside of ones own cluster, if there is an overlap on the 2nd trait there is a higher probability of relinking.
-        #is there still the possibility of rewiring within own cluster? No
-            #we are looking at a deliberate algorithm that promotes faster dissolution of clusters (extreme case)
-        #if links are only established if they have different  sign opinion1, there might be a problem with breaking too many links (as breaklink is governed by probability and unbiased)
+        #rewiring outside of ones own (opinion) cluster (we work with louvain clusters (=topological) but these become proxies for opinion clusters over time) -> time efficiency reason (see thesis)
+        #we are looking at a deliberate algorithm that promotes faster dissolution of clusters (extreme case), non realistic
+        #links are established for sure if agents disagree in their opinion, no link is established if they agree;
+        #again this could be refined by introducing probability functions
+        #links are only broken is a link is established (see above in biasedrewiring)
       
         
         if(self.partition == None): #louvain is already used in first step of runSim, this is just to set the variable equal to the partition in the function as well.
@@ -326,22 +335,12 @@ class Model:
             
         for k, v in partition.items():
             self.graph.node[k]["louvain-val"] = v
+
         
-        # init_neighbours =  list(self.graph.adj[nodeIndex].keys())
-        # if(len(init_neighbours) == 0):
-        #     return nodeIndex
-     
-        # else:
-        #     breaklinkNeighbourIndex = init_neighbours[random.randint(0, len(init_neighbours)-1)]
-            
-            # if random.random() < breaklinkprob:
-            #     #print('breaking link')
-            #     self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
-        
-        nodeCluster =  self.graph.nodes[nodeIndex]['louvain-val']
+        nodeCluster =  self.graph.nodes[nodeIndex]['louvain-val'] #which cluster does agent i belong to?
         #print(nodeCluster)
         other_cluster = []
-        other_cluster.append([k for k in self.graph.nodes if k != nodeIndex and self.graph.nodes[k]['louvain-val'] != nodeCluster])
+        other_cluster.append([k for k in self.graph.nodes if k != nodeIndex and self.graph.nodes[k]['louvain-val'] != nodeCluster]) #a list of all nodes that are not in agent i's cluster
         other_cluster = other_cluster[0]
         #print(other_cluster)
         rewired = False
@@ -351,7 +350,7 @@ class Model:
             #print('connected to everyone')
         else:
             #print('bridge rewiring')
-            partnerOutClusterIndex = random.sample(other_cluster, 1)
+            partnerOutClusterIndex = random.sample(other_cluster, 1) #here preferential attachment should be implemented
             partnerOutClusterIndex = partnerOutClusterIndex[0]
             #print(partnerOutClusterIndex)
             #print(self.graph.nodes[partnerOutClusterIndex]['louvain-val'])
@@ -362,12 +361,13 @@ class Model:
             if node.state >=0 and partnerOutCluster.state >=0 or node.state <0 and partnerOutCluster.state <0:
                 #print('we are the same')
                 #print(node.state, partnerOutCluster.state)
-                self.graph.add_edge(nodeIndex, partnerOutClusterIndex, weight = get_truncated_normal(args["friendship"], args["friendshipSD"], 0, 1).rvs(1)[0])
-                rewired = True
+                return nodeIndex
             elif node.state >=0 and partnerOutCluster.state <0 or node.state <0 and partnerOutCluster.state >=0:
                 #print('we are different')
                 #print(node.state, partnerOutCluster.state)
-                return nodeIndex
+                self.graph.add_edge(nodeIndex, partnerOutClusterIndex, weight = get_truncated_normal(args["friendship"], args["friendshipSD"], 0, 1).rvs(1)[0])
+                rewired = True
+                #to make the bridge_s algorithm, just copy the above 2 lines in the 'we are the same' part and move the return nodeIndex down here
             else:
                 print('error: state signs not same not different?')
                    
