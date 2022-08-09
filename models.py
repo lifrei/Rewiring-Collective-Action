@@ -13,6 +13,7 @@ from community import community_louvain
 from operator import itemgetter
 import heapq
 from IPython.display import Image
+import time
 import matplotlib.patches as mpatches
 import dill
 import math
@@ -47,7 +48,7 @@ politicalClimate = 0.05
 newPoliticalClimate = 1*politicalClimate # we can change the political climate mid run
 stubbornness = 0.6
 degree = 8 
-timesteps= 50000  #timesteps = 50000
+timesteps= 5000 #50000  #timesteps = 50000
 continuous = True
 skew = -0.25
 initSD = 0.15
@@ -55,7 +56,7 @@ mypalette = ["blue","red","green", "orange", "magenta","cyan","violet", "grey", 
 randomness = 0.10
 gridtype = 'cl' # this is actually set in run.py for some reason... overrides this
 gridsize = 33   # used for grid networks
-nwsize = 1089   # nwsize = 1089 used for CSF (Clustered scale free network) networks
+nwsize = 600 #1089   # nwsize = 1089 used for CSF (Clustered scale free network) networks
 friendship = 0.5
 friendshipSD = 0.15
 clustering = 0.5 # CSF clustering in louvain algorithm
@@ -79,7 +80,7 @@ args = {"defectorUtility" : defectorUtility,
 def getargs():
     return args
 
-def simulate(i, newArgs):
+def simulate(i, newArgs, R_G):
     setArgs(newArgs)
     global args
 
@@ -104,9 +105,18 @@ def simulate(i, newArgs):
         model = RandomModel(nwsize, args["degree"], skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
     else:
         model = RandomModel(nwsize, args["degree"],  friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
-  
-    #model.addInfluencers(newArgs["influencers"], index=ind, hub=False, allSame=False)
-    res = model.runSim(args["timesteps"], clusters=True, drawModel=True, gifname= 'trialtrial') ## gifname provide a gif name if you want a gif animation, need to specify time stamps later on
+    
+    
+    
+    C_0, S_0 = model.property_checks(R_G)
+    print(f"Start: Clustering, Small World Coefficient = {C_0, S_0}")
+    res = model.runSim(args["timesteps"], clusters=True, drawModel=False, gifname= 'trialtrial') ## gifname provide a gif name if you want a gif animation, need to specify time stamps later on
+    C_end, S_end = model.property_checks(R_G)
+    
+    #storing difference in respective model variables
+    model.clustering_diff = C_end - C_0
+    model.small_world_diff = S_end - S_0
+    print(f"End: Clustering, Small World Coefficient = {C_end, S_end}")
     
     #draw_model(model)
     return model
@@ -197,6 +207,8 @@ class Model:
         self.avgNbAgreeingList = []
         self.partition = None
         self.test = []
+        self.clustering_diff = []
+        self.small_world_diff = []
 
     # picks a randon agent to perform an interaction with a random neighbour and then to rewire
     def interact(self):
@@ -228,6 +240,33 @@ class Model:
         return nodeIndex
 
 #rewiring--------------------------------------------------------------------------------
+    def quick_sigma(self, test_graph, R_G, *args):
+            
+        def calc(graph):
+            C, L = nx.average_clustering(graph), nx.average_shortest_path_length(graph)
+            return C, L 
+            
+        out  = list(map(calc, [R_G, test_graph]))
+        
+        Cr, Lr, C, L = list(sum(out,()))
+        
+        sw_sigma = (C/Cr)/(L/Lr)
+                
+        return sw_sigma  
+
+    def property_checks(self, R_G): 
+    
+        
+        #small world property "sigma"
+        #sw_property = nx.sigma(self.graph)
+        sw_property = self.quick_sigma(self.graph, R_G, args)
+        #calculate avg clustering
+        clustering = nx.average_clustering(self.graph)
+        
+        return clustering, sw_property
+        
+
+    
     def randomrewiring(self, nodeIndex):
             
            # print('starting random rewiring')
@@ -527,7 +566,7 @@ class Model:
     
     
     # this part actually runs the simulation
-    def runSim(self, timesteps, groupInteract=False, drawModel = True, countNeighbours = False, gifname= 'trialtrial', clusters= True):
+    def runSim(self, timesteps, groupInteract=False, drawModel = False, countNeighbours = False, gifname= 'trialtrial', clusters= True):
         if(self.partition ==None):
             self.partition = community_louvain.best_partition(self.graph)
 
@@ -569,7 +608,7 @@ class Model:
             self.maxdegrees_l.append(maxdegree)
             avgFriends = self.updateAvgNbAgreeingFriends(nodeIndex)
             #avgFriends = self.findNbAgreeingFriends(nodeIndex)
-            draw_model(self) #this should draw the model in every timestep!
+            #draw_model(self) #this should draw the model in every timestep! 
             self.avgNbAgreeingList.append(avgFriends)
 
             global args 
@@ -597,10 +636,10 @@ class Model:
                 self.defectorDefectingNeighsSTDList.append(defectorDefectingNeighsSTD)
                 self.cooperatorDefectingNeighsSTDList.append(cooperatorDefectingNeighsSTD)
             
-            snapshots = [0,50,100,250,500,750,1000,2000,4000]
-            if(gifname != None and (i in snapshots)):
-                draw_model(self, True, i, extraTitle = f'  avg state: {self.states[-1]:1.2f} agreement: {self.avgNbAgreeingList[-1]:1.2f}')
-                filenames.append("plot" + str(i) +".png")
+            # snapshots = [0,50,100,250,500,750,1000,2000,4000]
+            # if(gifname != None and (i in snapshots)):
+            #     draw_model(self, True, i, extraTitle = f'  avg state: {self.states[-1]:1.2f} agreement: {self.avgNbAgreeingList[-1]:1.2f}')
+            #     filenames.append("plot" + str(i) +".png")
             
         #if(gifname != None):
         #    images = []
@@ -1067,7 +1106,14 @@ def drawAvgNumberOfAgreeingFriends(models, pltNr = 1):
     plt.ylabel("Agreement")
     plt.plot(avgAvg, color=mypalette[pltNr-1])
 
-#model = simulate(10, args)
+#for testing only
+# start = time.time()
+# # for i in range(10):
+# model = simulate(10, args)
+# end = time.time()
+# mins = (end - start) / 60
+# sec = (end - start) % 60
+# print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
 #if timesteps == 0 or timesteps == 10:
 #drawClusteredModel(model)
 
