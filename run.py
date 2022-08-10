@@ -50,7 +50,7 @@ from itertools import product
 if  __name__ ==  '__main__': 
 
     #Constants and Variables
-    numberOfSimulations = 10
+    numberOfSimulations = 80
     numberOfProcessors =  int(multiprocessing.cpu_count()*0.6) # CPUs to use for parallelization
 
     start = time.time()

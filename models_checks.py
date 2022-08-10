@@ -55,7 +55,7 @@ politicalClimate = 0.05
 newPoliticalClimate = 1*politicalClimate # we can change the political climate mid run
 stubbornness = 0.6
 degree = 8 
-timesteps= 500 #50000  #timesteps = 50000
+timesteps= 50000 #50000  #timesteps = 50000
 continuous = True
 skew = -0.25
 initSD = 0.15
@@ -63,7 +63,7 @@ mypalette = ["blue","red","green", "orange", "magenta","cyan","violet", "grey", 
 randomness = 0.10
 gridtype = 'cl' # this is actually set in run.py for some reason... overrides this
 gridsize = 33   # used for grid networks
-nwsize = 50 #1089   # nwsize = 1089 used for CSF (Clustered scale free network) networks
+nwsize = 1089 #1089   # nwsize = 1089 used for CSF (Clustered scale free network) networks
 friendship = 0.5
 friendshipSD = 0.15
 clustering = 0.5 # CSF clustering in louvain algorithm
@@ -1175,13 +1175,13 @@ def drawAvgNumberOfAgreeingFriends(models, pltNr = 1):
     plt.plot(avgAvg, color=mypalette[pltNr-1])
 
 #for testing only
-start = time.time()
+#start = time.time()
 #for i in range(10):
-model = simulate(10, args)
-end = time.time()
-mins = (end - start) / 60
-sec = (end - start) % 60
-print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
+#model = simulate(10, args)
+#end = time.time()
+#mins = (end - start) / 60
+#sec = (end - start) % 60
+#print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
 #if timesteps == 0 or timesteps == 10:
 #drawClusteredModel(model)
 
