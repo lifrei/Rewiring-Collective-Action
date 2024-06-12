@@ -1,0 +1,29 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Python",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/bench_rust_wtf_new.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Attach to Python (Rust Debug)",
+            "type": "cppvsdbg",
+            "request": "attach",
+            "processId": "${command:pickProcess}",
+            "symbolSearchPath": "${workspaceFolder}/target/debug",
+            "sourceFileMap": {
+                "/mnt/c": "C:\\",
+                "/path/to/rust/src": "${workspaceFolder}/src/"   // Adjust this line to match your Rust source path
+            },
+            "logging": {
+                "moduleLoad": true,
+                "exceptions": true,
+                "process": true,
+                "thread": true
+            }
+        }
+    ]
+}

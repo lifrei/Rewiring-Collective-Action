@@ -1,0 +1,23 @@
+[package]
+name = "fast_wtf"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pyo3 = { version = "0.15.1", features = ["extension-module"] }
+numpy = "0.15.1"
+petgraph = "0.6.0"
+rayon = "1.5.1"
+nalgebra = "0.29.0"
+itertools = "0.10.1"
+sprs = "0.11.0"
+dashmap = "5.0"
+
+[lib]
+name = "fast_wtf"
+crate-type = ["cdylib"]
+
+[profile.release]
+opt-level = 3  # Maximum optimization
+#debug = true
+
